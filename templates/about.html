@@ -1,0 +1,68 @@
+{% extends 'base.html' %}
+{% block title %}Our Mission & Vision{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-10">
+        
+        <div class="text-center mb-5">
+            <h1 class="display-4 fw-bold gradient-text-blue">Our Mission</h1>
+            <p class="lead text-secondary">
+                To build a transparent bridge between generosity and need.
+            </p>
+        </div>
+        
+        <div class="card shadow-sm border-0 rounded-3 mb-5">
+            <div class="row g-0">
+                <div class="col-md-6">
+                    <img src="{{ url_for('static', filename='images2/about-vision.png') }}" 
+                         class="img-fluid rounded-start p-5" 
+                         alt="Community" 
+                         style="object-fit: cover; height: 100%;">
+                </div>
+                <div class="col-md-6 d-flex align-items-center">
+                    <div class="card-body p-5">
+                        <h3 class="fw-bold h4">What We Do</h3>
+                        <p class="text-secondary">
+                            Our mission is to connect donors with orphanages in need. We streamline the donation process to ensure every gift is exactly what's needed, when it's needed.
+                        </p>
+                        <p class="text-secondary">
+                            We aim to reduce waste from unwanted donations and maximize the impact of every contribution by providing a real-time, verified platform for needs.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="text-center mb-5 mt-5 pt-5">
+            <h1 class="display-4 fw-bold gradient-text-blue">Our Vision</h1>
+            <p class="lead text-secondary">
+                A world where every child has the resources they need to thrive.
+            </p>
+        </div>
+        
+        <div class="card shadow-sm border-0 rounded-3 mb-5">
+            <div class="row g-0">
+                <div class="col-md-6 d-flex align-items-center order-md-2">
+                    <div class="card-body p-5">
+                        <h3 class="fw-bold h4">How We Do It</h3>
+                        <p class="text-secondary">
+                            By leveraging smart, data-driven technology, we provide a central hub for orphanages to list their active needs and surplus items. 
+                        </p>
+                        <p class="text-secondary">
+                            Our "Smart Rerouting" system allows organizations to share resources, ensuring that a surplus of blankets in one location can fulfill a need in another.
+                        </p>
+                    </div>
+                </div>
+                <div class="col-md-6 order-md-1">
+                    <img src="{{ url_for('static', filename='images2/how2.webp') }}" 
+                         class="img-fluid rounded-start p-5" 
+                         alt="Technology" 
+                         style="object-fit: cover; height: 100%;">
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}

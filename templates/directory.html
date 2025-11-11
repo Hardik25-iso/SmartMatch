@@ -1,0 +1,32 @@
+{% extends 'base.html' %}
+{% block title %}Partner Directory{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+    <h1 class="display-4 fw-bold gradient-text-blue">Partner Directory</h1>
+    <p class="lead text-secondary">Browse all the verified organizations in our network.</p>
+</div>
+
+<div class="row g-4">
+    {% for org in orphanages %}
+    <div class="col-lg-6">
+        <div class="card shadow-sm border-0 rounded-3 h-100">
+            <div class="card-body p-4">
+                <h3 class="fw-bold h4" style="color: var(--primary-blue-dark);">{{ org.name }}</h3>
+                <p class="text-muted mb-2"><i class="bi bi-geo-alt-fill me-2"></i>{{ org.city }}</p>
+                <p class="card-text">
+                    {{ org.description or "No description provided." }}
+                </p>
+            </div>
+            <div class="card-footer bg-transparent border-0 p-4 pt-0">
+                <a href="{{ url_for('needs_list') }}#org-{{ org.id }}" class="btn btn-primary-blue rounded-pill px-4">
+                    View Needs
+                </a>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <p class="text-center text-muted">No orphanages have registered yet.</p>
+    {% endfor %}
+</div>
+{% endblock %}

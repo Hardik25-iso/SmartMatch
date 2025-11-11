@@ -1,0 +1,66 @@
+{% extends 'base.html' %}
+{% block title %}Register Your Orphanage{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-7">
+        <div class="card shadow-lg border-0 rounded-lg mt-5">
+            <div class="card-header border-0 bg-transparent">
+                <h2 class="text-center fw-bold h2 my-4 gradient-text-blue">
+                    Register Your Orphanage
+                </h2>
+            </div>
+            <div class="card-body p-4 p-md-5">
+                <form method="POST" action="{{ url_for('register_ngo') }}" class="needs-validation" novalidate>
+                    <h5 class="fw-bold text-secondary mb-3">Step 1: Your Account Details</h5>
+                    <div class="row g-3">
+                        <div class="col-md-6 mb-3">
+                            <label for="name" class="form-label">Your Full Name (Contact Person)</label>
+                            <input type="text" name="name" id="name" class="form-control" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="email" class="form-label">Your Login Email</label>
+                            <input type="email" name="email" id="email" class="form-control" required>
+                        </div>
+                    </div>
+                    <div class="mb-4">
+                        <label for="password" class="form-label">Password</label>
+                        <input type="password" name="password" id="password" class="form-control" required>
+                    </div>
+
+                    <hr class="my-4">
+                    <h5 class="fw-bold text-secondary mb-3">Step 2: Orphanage Profile</h5>
+                    <div class="row g-3">
+                        <div class="col-md-6 mb-3">
+                            <label for="orphanage_name" class="form-label">Official Orphanage Name</label>
+                            <input type="text" name="orphanage_name" id="orphanage_name" class="form-control" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="contact_email" class="form-label">Public Contact Email</label>
+                            <input type="email" name="contact_email" id="contact_email" class="form-control" required>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="city" class="form-label">City</label>
+                        <input type="text" name="city" id="city" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="address" class="form-label">Full Address</label>
+                        <textarea name="address" id="address" rows="3" class="form-control"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label for="description" class="form-label">Description (Optional)</label>
+                        <textarea name="description" id="description" rows="3" class="form-control"></textarea>
+                    </div>
+
+                    <div class="d-grid mt-4">
+                        <button type="submit" class="btn btn-primary-blue btn-lg rounded-pill">
+                            Create Orphanage Account
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

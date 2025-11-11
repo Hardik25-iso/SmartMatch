@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+{% block title %}Manage Your Stats{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-7">
+        <div class="card shadow-lg border-0 rounded-lg">
+            <div class="card-header border-0 bg-transparent">
+                <h2 class="text-center fw-bold h2 my-4 gradient-text-blue">Manage Your Statistics</h2>
+                <p class="text-center text-muted mb-0">
+                    This data is private and helps you track your resource needs.
+                </p>
+            </div>
+            <div class="card-body p-4 p-md-5">
+                <form action="{{ url_for('manage_stats') }}" method="POST">
+                    <div class="mb-3">
+                        <label for="children_0_5" class="form-label">Children Aged 0-5</label>
+                        <input type="number" name="children_0_5" id="children_0_5" class="form-control" min="0" value="{{ orphanage.children_0_5 }}">
+                    </div>
+                    <div class="mb-3">
+                        <label for="children_6_12" class="form-label">Children Aged 6-12</label>
+                        <input type="number" name="children_6_12" id="children_6_12" class="form-control" min="0" value="{{ orphanage.children_6_12 }}">
+                    </div>
+                    <div class="mb-3">
+                        <label for="children_13_18" class="form-label">Teens Aged 13-18</label>
+                        <input type="number" name="children_13_18" id="children_13_18" class="form-control" min="0" value="{{ orphanage.children_13_18 }}">
+                    </div>
+                    <div class="d-grid mt-4">
+                        <button type="submit" class="btn btn-primary-blue btn-lg rounded-pill">Save Statistics</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

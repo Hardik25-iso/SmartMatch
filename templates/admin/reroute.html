@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+{% block title %}Rerouting Opportunities{% endblock %}
+
+{% block content %}
+<h1 class="display-4 fw-bold gradient-text-blue mb-4">Rerouting Opportunities</h1>
+<p class="lead text-secondary">
+    This page shows active needs from other orphanages that you can fulfill with your available surplus items.
+</p>
+
+<div class="card shadow-sm border-0 rounded-3 mt-5">
+    <div class="card-header bg-white border-0 p-4">
+        <h3 class="h4 fw-bold mb-0">Available Matches</h3>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th class="py-3 px-4">Your Surplus Item</th>
+                        <th class="py-3 px-4">You Have</th>
+                        <th class="py-3 px-4">Orphanage in Need</th>
+                        <th class="py-3 px-4">They Need</th>
+                        <th class="py-3 px-4">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for match in matches %}
+                    <tr>
+                        <td class="py-3 px-4 align-middle fw-bold">{{ match.item_name }} <span class="text-muted small">({{ match.category }})</span></td>
+                        <td class="py-3 px-4 align-middle fw-bold text-success">{{ match.my_surplus_quantity }}</td>
+                        <td class="py-3 px-4 align-middle">{{ match.they_need_it_orphanage_name }}</td>
+                        <td class="py-3 px-4 align-middle fw-bold text-danger">{{ match.their_needed_quantity }}</td>
+                        <td class="py-3 px-4 align-middle">
+                            <form action="{{ url_for('execute_reroute') }}" method="POST" onsubmit="return confirm('Are you sure you want to send {{ match.their_needed_quantity }} x {{ match.item_name }} to {{ match.they_need_it_orphanage_name }}?');">
+                                <input type="hidden" name="surplus_id" value="{{ match.my_surplus_id }}">
+                                <input type="hidden" name="need_id" value="{{ match.their_need_id }}">
+                                <button type="submit" class="btn btn-secondary-dark btn-sm rounded-pill px-3">
+                                    Reroute
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="5" class="p-4 text-center text-muted">You have no surplus items that match any active needs.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

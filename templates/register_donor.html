@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+{% block title %}Register as a Donor{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-5 col-md-8">
+        <div class="card shadow-lg border-0 rounded-lg mt-5">
+            <div class="card-header border-0 bg-transparent">
+                <h2 class="text-center fw-bold h2 my-4 gradient-text-blue">
+                    Create Your Donor Account
+                </h2>
+            </div>
+            <div class="card-body p-4 p-md-5">
+                <form method="POST" action="{{ url_for('register_donor') }}" class="needs-validation" novalidate>
+                    <div class="form-floating mb-3">
+                        <input type="text" name="name" id="name" class="form-control" placeholder="Your Name" required>
+                        <label for="name">Full Name</label>
+                    </div>
+                    <div class="form-floating mb-3">
+                        <input type="email" name="email" id="email" class="form-control" placeholder="name@example.com" required>
+                        <label for="email">Email Address</label>
+                    </div>
+                    <div class="form-floating mb-4">
+                        <input type="password" name="password" id="password" class="form-control" placeholder="Password" required>
+                        <label for="password">Password</label>
+                    </div>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary-blue btn-lg rounded-pill">
+                            Create Account
+                        </button>
+                    </div>
+                </form>
+            </div>
+            <div class="card-footer text-center py-4 bg-transparent border-0">
+                <a href="{{ url_for('register_ngo') }}" class="fw-bold text-decoration-none" style="color: var(--primary-blue);">Are you an orphanage? Register here.</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

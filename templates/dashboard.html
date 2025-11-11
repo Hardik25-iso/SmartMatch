@@ -1,0 +1,134 @@
+{% extends 'base.html' %}
+{% block title %}NGO Dashboard{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="display-4 fw-bold gradient-text-blue mb-0">Welcome, {{ current_user.orphanage.name }}</h1>
+    <a href="{{ url_for('manage_stats') }}" class="btn btn-outline-dark rounded-pill">
+        <i class="bi bi-bar-chart-fill me-2"></i>Manage Statistics
+    </a>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <div class="card shadow-sm border-0 rounded-3">
+            <div class="card-body text-center p-4">
+                <h6 class="text-muted mb-0">Children (0-5)</h6>
+                <p class="display-4 fw-bold mb-0">{{ current_user.orphanage.children_0_5 }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card shadow-sm border-0 rounded-3">
+            <div class="card-body text-center p-4">
+                <h6 class="text-muted mb-0">Children (6-12)</h6>
+                <p class="display-4 fw-bold mb-0">{{ current_user.orphanage.children_6_12 }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card shadow-sm border-0 rounded-3">
+            <div class="card-body text-center p-4">
+                <h6 class="text-muted mb-0">Teens (13-18)</h6>
+                <p class="display-4 fw-bold mb-0">{{ current_user.orphanage.children_13_18 }}</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <a href="{{ url_for('add_item') }}" class="btn btn-primary-blue btn-lg w-100 rounded-pill">Add New Need</a>
+    </div>
+    <div class="col-md-4">
+        <a href="{{ url_for('add_surplus') }}" class="btn btn-secondary-dark btn-lg w-100 rounded-pill">Add Surplus Item</a>
+    </div>
+    <div class="col-md-4">
+        <a href="{{ url_for('add_update') }}" class="btn btn-outline-dark btn-lg w-100 rounded-pill">Post an Update</a>
+    </div>
+</div>
+
+<div class="card shadow-sm border-0 rounded-3 mb-4">
+    <div class="card-header bg-white border-0 p-4">
+        <h3 class="h4 fw-bold mb-0">My Active Needs & Pledges</h3>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th class="py-3 px-4">Item</th>
+                        <th class="py-3 px-4">Status</th>
+                        <th class="py-3 px-4">Pledged By</th>
+                        <th class="py-3 px-4">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in items %}
+                    <tr>
+                        <td class="py-3 px-4 align-middle fw-bold">{{ item.item_name }} ({{ item.quantity_needed }})</td>
+                        <td class="py-3 px-4 align-middle">
+                            <span class="badge rounded-pill
+                            {% if item.status == 'Active' %} bg-success-subtle text-success-emphasis
+                            {% elif item.status == 'Pledged' %} bg-warning-subtle text-warning-emphasis
+                            {% else %} bg-secondary-subtle text-secondary-emphasis
+                            {% endif %}">
+                                {{ item.status }}
+                            </span>
+                        </td>
+                        <td class="py-3 px-4 align-middle">{{ item.donor.name if item.donor else 'N/A' }}</td>
+                        <td class="py-3 px-4 align-middle">
+                            <a href="{{ url_for('edit_item', item_id=item.id) }}" class="btn btn-sm btn-outline-dark">Edit</a>
+                            <form action="{{ url_for('delete_item', item_id=item.id) }}" method="POST" class="d-inline" onsubmit="return confirm('Are you sure?');">
+                                <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="4" class="p-4 text-center text-muted">You have no active needs.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="card shadow-sm border-0 rounded-3">
+    <div class="card-header bg-white border-0 p-4">
+        <h3 class="h4 fw-bold mb-0">My Surplus Inventory</h3>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th class="py-3 px-4">Item</th>
+                        <th class="py-3 px-4">Category</th>
+                        <th class="py-3 px-4">Quantity</th>
+                        <th class="py-3 px-4">Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for surplus in surpluses %}
+                    <tr>
+                        <td class="py-3 px-4 align-middle fw-bold">{{ surplus.item_name }}</td>
+                        <td class="py-3 px-4 align-middle">{{ surplus.category }}</td>
+                        <td class="py-3 px-4 align-middle">{{ surplus.quantity }}</td>
+                        <td class="py-3 px-4 align-middle">
+                            <span class="badge rounded-pill
+                            {% if surplus.status == 'Available' %} bg-success-subtle text-success-emphasis
+                            {% else %} bg-secondary-subtle text-secondary-emphasis
+                            {% endif %}">
+                                {{ surplus.status }}
+                            </span>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="4" class="p-4 text-center text-muted">You have no surplus items.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

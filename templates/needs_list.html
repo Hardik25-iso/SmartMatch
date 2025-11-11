@@ -1,0 +1,62 @@
+{% extends 'base.html' %}
+{% block title %}View All Needs{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+    <h1 class="display-4 fw-bold gradient-text-blue">All Active Needs</h1>
+    <p class="lead text-secondary">Browse items needed by verified orphanages. Log in as a donor to make a pledge.</p>
+</div>
+
+<div class="row g-4">
+    {% for orphanage in orphanages %}
+        {% set active_items = orphanage.items|selectattr('status', 'equalto', 'Active')|list %}
+        {% if active_items %}
+            <div class="col-12">
+                <div class="card shadow-sm border-0 rounded-3" id="org-{{ orphanage.id }}">
+                    <div class="card-header bg-white border-0 p-4">
+                        <h2 class="h4 fw-bold mb-0">{{ orphanage.name }}</h2>
+                        <p class="text-muted mb-0">{{ orphanage.city }} - {{ orphanage.address }}</p>
+                    </div>
+                    <ul class="list-group list-group-flush">
+                        {% for item in active_items %}
+                        <li class="list-group-item p-4">
+                            <div class="row align-items-center">
+                                <div class="col-md-4">
+                                    <h5 class="fw-bold mb-0" style="color: var(--primary-blue-dark);">{{ item.item_name }}</h5>
+                                    <span class="text-muted small">Category: {{ item.category }}</span>
+                                </div>
+                                <div class="col-md-4">
+                                    <p class="mb-0">Quantity Needed: <span class="fw-bold h5">{{ item.quantity_needed }}</span></p>
+                                    {% if item.is_urgent %}
+                                    <span class="badge bg-danger-subtle text-danger-emphasis rounded-pill">
+                                        URGENT
+                                    </span>
+                                    {% endif %}
+                                </div>
+                                <div class="col-md-4 text-md-end mt-3 mt-md-0">
+                                    {% if current_user.is_authenticated %}
+                                        {% if current_user.role == 'donor' %}
+                                            <form action="{{ url_for('pledge', item_id=item.id) }}" method="POST">
+                                                <button type="submit" class="btn btn-primary-blue rounded-pill px-4">
+                                                    Pledge This Item
+                                                </button>
+                                            </form>
+                                        {% elif current_user.role == 'ngo' %}
+                                            <span class="text-muted fst-italic">NGOs cannot pledge</span>
+                                        {% endif %}
+                                    {% else %}
+                                        <a href="{{ url_for('login') }}" class="btn btn-outline-dark rounded-pill px-4">
+                                            Login as Donor to Pledge
+                                        </a>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        {% endif %}
+    {% endfor %}
+</div>
+{% endblock %}

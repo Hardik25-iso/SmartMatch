@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+{% block title %}Edit Item{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-7">
+        <div class="card shadow-lg border-0 rounded-lg">
+            <div class="card-header border-0 bg-transparent">
+                <h2 class="text-center fw-bold h2 my-4 gradient-text-blue">Edit Item</h2>
+            </div>
+            <div class="card-body p-4 p-md-5">
+                <form action="{{ url_for('edit_item', item_id=item.id) }}" method="POST" class="needs-validation" novalidate>
+                    <div class="mb-3">
+                        <label for="item_name" class="form-label">Item Name</label>
+                        <input type="text" name="item_name" id="item_name" class="form-control" required value="{{ item.item_name }}">
+                    </div>
+                    <div class="mb-3">
+                        <label for="category" class="form-label">Category</label>
+                        <input type="text" name="category" id="category" class="form-control" required value="{{ item.category }}">
+                    </div>
+                    <div class="mb-3">
+                        <label for="quantity_needed" class="form-label">Quantity Needed</label>
+                        <input type="number" name="quantity_needed" id="quantity_needed" class="form-control" required min="1" value="{{ item.quantity_needed }}">
+                    </div>
+                    <div class="mb-3">
+                        <label for="status" class="form-label">Status</label>
+                        <select name="status" id="status" class="form-select">
+                            <option value="Active" {% if item.status == 'Active' %}selected{% endif %}>Active</option>
+                            <option value="Pledged" {% if item.status == 'Pledged' %}selected{% endif %}>Pledged</option>
+                            <option value="Fulfilled" {% if item.status == 'Fulfilled' %}selected{% endif %}>Fulfilled</option>
+                        </select>
+                    </div>
+                    <div class="form-check mb-4">
+                        <input id="is_urgent" name="is_urgent" type="checkbox" class="form-check-input" {% if item.is_urgent %}checked{% endif %}>
+                        <label for="is_urgent" class="form-check-label">This is urgent</label>
+                    </div>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary-blue btn-lg rounded-pill">Save Changes</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

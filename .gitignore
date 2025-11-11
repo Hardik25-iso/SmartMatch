@@ -1,0 +1,12 @@
+# Virtual Environment
+venv/
+
+# Python Cache
+__pycache__/
+*.pyc
+
+# VS Code temp file
+tempCodeRunnerFile.py
+
+# Secrets file
+.env

@@ -1,0 +1,100 @@
+{% extends 'base.html' %}
+{% block title %}Welcome to NexaKind{% endblock %}
+
+{% block hero %}
+<div class="container-fluid px-0">
+    <div class="card bg-dark text-white border-0 rounded-0">
+        
+        <img src="{{ url_for('static', filename='images/hero-bg.jpg') }}" 
+             class="card-img" alt="Hero background" style="max-height: 550px; object-fit: cover; opacity: 0.45;">
+        
+        <div class="card-img-overlay d-flex flex-column justify-content-center align-items-center text-center p-4">
+            <h1 class="display-3 fw-bold text-white mb-3">
+                Donate Smarter, Not Harder.
+            </h1>
+            <p class="lead text-white-50 fs-5 mb-4" style="max-width: 600px;">
+                NexaKind connects you directly to the real-time, verified needs of orphanages. Stop guessing, and give what's truly needed today.
+            </p>
+            
+            <div class="d-grid gap-2 d-sm-flex justify-content-sm-center">
+                <a href="{{ url_for('about') }}" class="btn btn-primary-blue btn-lg px-4 rounded-pill">About Us</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+
+{% block content %}
+<div class="container my-5 py-5">
+    
+    <div id="how-it-works" class="text-center mb-5">
+        <h2 class="display-5 fw-bold gradient-text-blue">How It Works</h2>
+        <p class="lead text-secondary">A simple, transparent process for donors and orphanages.</p>
+    </div>
+
+    <div class="row g-4 justify-content-center">
+        <div class="col-lg-4 col-md-6">
+            <div class="card shadow-sm border-0 rounded-3 h-100 p-4 text-center">
+                <div class="card-body d-flex flex-column">
+                    <span style="font-size: 80px;">🎁</span>
+                    <h3 class="h4 fw-bold my-3">For Donors</h3>
+                    <p class="text-muted">
+                        Browse verified needs, create a donor account, and pledge specific items. You'll know exactly where your donation is going.
+                    </p>
+                    <a href="{{ url_for('register_donor') }}" class="btn btn-primary-blue rounded-pill px-4 mt-auto">Register as a Donor</a>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-4 col-md-6">
+            <div class="card shadow-sm border-0 rounded-3 h-100 p-4 text-center">
+                <div class="card-body d-flex flex-column">
+                    <span style="font-size: 80px;">🏡</span>
+                    <h3 class="h4 fw-bold my-3">For Orphanages</h3>
+                    <p class="text-muted">
+                        Register your organization to post active needs, manage incoming pledges, and list surplus items for rerouting to other partners.
+                    </p>
+                    <a href="{{ url_for('register_ngo') }}" class="btn btn-primary-blue rounded-pill px-4 mt-auto">Register your NGO</a>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4 col-md-6">
+            <div class="card shadow-sm border-0 rounded-3 h-100 p-4 text-center">
+                <div class="card-body d-flex flex-column">
+                    <span style="font-size: 80px;">✨</span>
+                    <h3 class="h4 fw-bold my-3">Our Mission</h3>
+                    <p class="text-muted">
+                        To build a transparent bridge between generosity and need. We aim to reduce waste and maximize impact by ensuring every donation is smart.
+                    </p>
+                    <a href="{{ url_for('needs_list') }}" class="btn btn-primary-blue rounded-pill px-4 mt-auto">View Active Needs</a>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <hr class="my-5">
+    <div class="text-center mb-4">
+        <h2 class="display-5 fw-bold gradient-text-blue">Our Community</h2>
+        <p class="lead text-secondary">A glimpse of the bright smiles you're supporting.</p>
+    </div>
+
+    <div class="row g-4">
+        {% for image_file in images %}
+            {% if image_file != 'hero-bg.jpg' and 'undraw' not in image_file %}
+            <div class="col-lg-4 col-md-6">
+                <div class="card shadow-sm border-0 rounded-3 h-100">
+                    <img src="{{ url_for('static', filename='images/' + image_file) }}" 
+                         class="card-img-top" 
+                         alt="Community image" 
+                         style="height: 250px; object-fit: cover;">
+                </div>
+            </div>
+            {% endif %}
+        {% else %}
+            <p class="text-center text-muted">Your community images will be displayed here.</p>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

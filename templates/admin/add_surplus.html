@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% block title %}Add Surplus Item{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-7">
+        <div class="card shadow-lg border-0 rounded-lg">
+            <div class="card-header border-0 bg-transparent">
+                <h2 class="text-center fw-bold h2 my-4 gradient-text-blue">Add a Surplus Item</h2>
+            </div>
+            <div class="card-body p-4 p-md-5">
+                <form action="{{ url_for('add_surplus') }}" method="POST" class="needs-validation" novalidate>
+                    <div class="mb-3">
+                        <label for="item_name" class="form-label">Item Name</label>
+                        <input type="text" name="item_name" id="item_name" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="category" class="form-label">Category</label>
+                        <input type="text" name="category" id="category" class="form-control" required placeholder="e.g. Food, Clothing, School Supplies">
+                    </div>
+                    <div class="mb-3">
+                        <label for="quantity" class="form-label">Quantity in Surplus</label>
+                        <input type="number" name="quantity" id="quantity" class="form-control" required min="1">
+                    </div>
+                    <div class="d-grid mt-4">
+                        <button type="submit" class="btn btn-secondary-dark btn-lg rounded-pill">Add Surplus to Inventory</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
