@@ -1,5 +1,9 @@
-Flask
-flask-bcrypt
-mysql-connector-python
-python-dotenv
-pika
+Flask==3.0.3
+Flask-SQLAlchemy==3.1.1
+Flask-Login==0.6.3
+Flask-Bcrypt==1.0.1
+PyMySQL==1.1.1
+cryptography==43.0.3
+python-dotenv==1.0.1
+gunicorn==22.0.0
+pika==1.3.2

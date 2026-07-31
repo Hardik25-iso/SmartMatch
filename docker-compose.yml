@@ -1,0 +1,39 @@
+# NexaKind — full stack (web + MySQL) for local run and cloud deployment.
+# Usage:  docker compose up --build   then open http://localhost
+#
+# The RabbitMQ worker (worker.py) is intentionally NOT deployed here: the app
+# writes pledges synchronously to MySQL, so the worker/queue are unused. They
+# remain in the repo as a documented future async enhancement.
+
+services:
+  db:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME}
+    volumes:
+      - db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${DB_PASSWORD}"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+    restart: unless-stopped
+
+  web:
+    build: .
+    ports:
+      - "80:8000"          # host 80 -> container 8000; hit the server on its bare IP
+    environment:
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_HOST: db          # overrides .env: the DB is the "db" service, not localhost
+      DB_NAME: ${DB_NAME}
+      SECRET_KEY: ${SECRET_KEY}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  db_data:
