@@ -67,7 +67,8 @@ def test_ngo_still_needed_button_clears_the_flag(client, db, factory):
     client.get("/logout")
 
     login(client, ngo.account)
-    assert client.get("/dashboard").get_data(as_text=True).count("Still needed") == 1
+    # Count the refresh forms, not the words: the listing-health card also says "Still needed".
+    assert client.get("/dashboard").get_data(as_text=True).count(f"/smartmatch/listings/{item.id}/refresh") == 1
     assert client.post(f"/smartmatch/listings/{item.id}/refresh").status_code == 302
     db.session.expire_all()
     refreshed = db.session.get(ItemNeeded, item.id)

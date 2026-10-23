@@ -65,6 +65,11 @@
                             <a class="nav-link fw-semibold" href="{{ url_for('reroute') }}">Reroute</a>
                         </li>
                     {% endif %}
+                    {% if current_user.is_authenticated and current_user.role == 'donor' %}
+                        <li class="nav-item">
+                            <a class="nav-link fw-semibold" href="{{ url_for('smartmatch.for_you') }}">Recommended for You</a>
+                        </li>
+                    {% endif %}
                     {% if current_user.is_authenticated and current_user.role == 'admin' %}
                         <li class="nav-item">
                             <a class="nav-link fw-semibold" href="{{ url_for('smartmatch.dashboard') }}">Matching</a>

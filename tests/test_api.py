@@ -110,3 +110,32 @@ def test_admin_dashboard_renders_and_is_admin_only(client, world, factory):
     assert "1 newly stale" in res.get_data(as_text=True)
     res = client.post("/smartmatch/alerts", follow_redirects=True)
     assert "dry run" in res.get_data(as_text=True)
+
+
+def test_donor_sees_recommendations_page(client, world, factory):
+    """The donor-facing page is the only place a donor meets the recommender."""
+    login(client, world["donor"])
+    page = client.get("/smartmatch/for-you?item_category=Food&donor_area=Kothrud")
+    html = page.get_data(as_text=True)
+    assert page.status_code == 200
+    # Ranked, with the nearest matching NGO first and a pledge button on its need.
+    assert html.index("Near Home") < html.index("Far Home")
+    assert "Hygiene Home" not in html, "an NGO with no Food need should not be recommended"
+    assert "match</div>" in html and "Pledge" in html
+    # The donor dashboard and nav must link to it, or nobody will find it.
+    assert "/smartmatch/for-you" in client.get("/dashboard").get_data(as_text=True)
+
+
+def test_ngo_sees_listing_health(client, world, factory):
+    from smartmatch.freshness import scan_stale_listings
+
+    factory.need(world["near"], age_days=45)
+    scan_stale_listings()
+    login(client, world["near"].account)
+    html = client.get("/dashboard").get_data(as_text=True)
+    assert "Listing health" in html and "ranked lower" in html
+
+
+def test_for_you_is_donor_only(client, world):
+    login(client, world["admin"])
+    assert client.get("/smartmatch/for-you").status_code == 403

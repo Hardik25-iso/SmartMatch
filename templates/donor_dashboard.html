@@ -7,7 +7,19 @@
     Thank you for your generosity. Here is a list of all the items you have pledged.
 </p>
 
-<div class="card shadow-sm border-0 rounded-3 mt-5">
+<div class="card border-0 rounded-3 mt-4 mb-5" style="background: linear-gradient(90deg, var(--primary-blue-dark), var(--primary-blue));">
+    <div class="card-body p-4 d-flex flex-wrap justify-content-between align-items-center gap-3 text-white">
+        <div>
+            <h3 class="h4 fw-bold mb-1">Not sure where to give?</h3>
+            <p class="mb-0 opacity-75">SmartMatch ranks orphanages by what they need, how close they are to you, and what you've given before.</p>
+        </div>
+        <a href="{{ url_for('smartmatch.for_you') }}" class="btn btn-light rounded-pill px-4 fw-semibold text-nowrap">
+            See my matches <i class="bi bi-arrow-right ms-1"></i>
+        </a>
+    </div>
+</div>
+
+<div class="card shadow-sm border-0 rounded-3">
     <div class="card-header bg-white border-0 p-4">
         <h3 class="h4 fw-bold mb-0">My Pledges</h3>
     </div>

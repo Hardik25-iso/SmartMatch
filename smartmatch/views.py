@@ -11,7 +11,7 @@ from .alerts import alerts_dry_run, recent_alerts, send_stale_alerts
 from .catalog import CATEGORIES
 from .features import FEATURES
 from .freshness import freshness_summary, get_stale_listings, refresh_listing, scan_stale_listings
-from .geo import AREA_NAMES
+from .geo import AREA_NAMES, normalize_area
 from .recommender import RecommendationError, model_info, recommend, train_model
 
 smartmatch_bp = Blueprint("smartmatch", __name__, url_prefix="/smartmatch")
@@ -89,6 +89,27 @@ def run_training():
     except RecommendationError as e:
         flash(f"Training failed: {e}", "danger")
     return redirect(url_for("smartmatch.dashboard", **_keep_query()))
+
+
+@smartmatch_bp.route("/for-you")
+@login_required
+def for_you():
+    """Donor-facing recommendations: the ranked NGOs for what this donor wants to give."""
+    if current_user.role != "donor":
+        abort(403)
+    category = request.args.get("item_category") or CATEGORIES[0]
+    area = request.args.get("donor_area") or None
+    recommendation, error = None, None
+    try:
+        recommendation = recommend(current_user.id, category, donor_area=area, limit=6)
+    except RecommendationError as e:
+        error = str(e)
+    return render_template(
+        "smartmatch/for_you.html",
+        categories=CATEGORIES, areas=AREA_NAMES,
+        selected={"item_category": category, "donor_area": area or normalize_area(current_user.area)},
+        recommendation=recommendation, error=error,
+    )
 
 
 @smartmatch_bp.route("/listings/<int:item_id>/refresh", methods=["POST"])

@@ -1,0 +1,124 @@
+{% extends 'base.html' %}
+{% block title %}Recommended for You{% endblock %}
+
+{% block content %}
+<style>
+    .fy-score-ring { width: 54px; height: 54px; border-radius: 50%; display: grid; place-items: center;
+                     font-weight: 700; font-size: .95rem; color: #fff; background: var(--primary-blue); }
+    .fy-why { font-size: .78rem; color: #6c757d; }
+    .fy-why .bar { display: inline-block; width: 46px; height: 5px; border-radius: 3px; background: #e9ecef; vertical-align: middle; overflow: hidden; }
+    .fy-why .bar > span { display: block; height: 100%; background: var(--primary-blue); }
+    .fy-rank { font-size: .8rem; font-weight: 600; color: #6c757d; }
+</style>
+
+<h1 class="display-5 fw-bold gradient-text-blue mb-2">Recommended for You</h1>
+<p class="lead text-secondary mb-4">
+    Orphanages matched to what you want to give, how close they are, and what you've donated before.
+    Needs confirmed recently rank higher.
+</p>
+
+<div class="card shadow-sm border-0 rounded-3 mb-4">
+    <div class="card-body p-4">
+        <form method="GET" class="row g-3 align-items-end">
+            <div class="col-md-5">
+                <label class="form-label small fw-semibold" for="item_category">What would you like to give?</label>
+                <select class="form-select" name="item_category" id="item_category">
+                    {% for c in categories %}
+                    <option {% if c == selected.item_category %}selected{% endif %}>{{ c }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-5">
+                <label class="form-label small fw-semibold" for="donor_area">Your area in Pune</label>
+                <select class="form-select" name="donor_area" id="donor_area">
+                    <option value="">Choose your area…</option>
+                    {% for a in areas %}
+                    <option {% if a == selected.donor_area %}selected{% endif %}>{{ a }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2 d-grid">
+                <button class="btn btn-primary-blue rounded-pill">Find matches</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% if error %}
+    <div class="alert alert-warning">{{ error }}</div>
+{% elif recommendation %}
+    {% if not selected.donor_area %}
+    <div class="alert alert-info">
+        Pick your area above and we'll rank orphanages by how close they are to you.
+    </div>
+    {% endif %}
+    {% if not recommendation.category_has_matches and recommendation.results %}
+    <div class="alert alert-warning">
+        No orphanage currently needs <strong>{{ selected.item_category }}</strong>. Showing those with other open needs.
+    </div>
+    {% endif %}
+
+    <div class="row g-4">
+    {% for r in recommendation.results %}
+        <div class="col-lg-6">
+            <div class="card shadow-sm border-0 rounded-3 h-100">
+                <div class="card-body p-4">
+                    <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+                        <div>
+                            <div class="fy-rank">#{{ r.rank }} match</div>
+                            <h3 class="h5 fw-bold mb-1">{{ r.orphanage_name }}</h3>
+                            <div class="text-muted small">
+                                <i class="bi bi-geo-alt"></i> {{ r.area }}
+                                {% if r.distance_km is not none %} &middot; {{ '%.1f' % r.distance_km }} km from you{% endif %}
+                            </div>
+                        </div>
+                        <div class="fy-score-ring" title="Match score out of 100">{{ (r.score * 100)|round|int }}</div>
+                    </div>
+
+                    <div class="fy-why mb-3">
+                        {% for label, key in [('Needs this category', 'category_match'), ('Close to you', 'proximity'), ('Matches your giving', 'content_sim')] %}
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span>{{ label }}</span>
+                            <span class="bar"><span style="width: {{ (r.components[key] * 100)|round|int }}%"></span></span>
+                        </div>
+                        {% endfor %}
+                        {% if r.components.affinity > 0 %}
+                        <div class="text-success"><i class="bi bi-heart-fill"></i> You've given here before</div>
+                        {% endif %}
+                    </div>
+
+                    <h4 class="small fw-bold text-uppercase text-muted mb-2">They need</h4>
+                    {% for n in r.matching_needs[:3] %}
+                    <div class="d-flex justify-content-between align-items-center border-top py-2">
+                        <div>
+                            <span class="fw-semibold">{{ n.item_name }}</span>
+                            <span class="text-muted small">&times;{{ n.quantity_needed }}</span>
+                            {% if n.is_urgent %}<span class="badge bg-danger-subtle text-danger-emphasis">urgent</span>{% endif %}
+                            {% if n.is_stale %}<span class="badge bg-secondary-subtle text-secondary-emphasis" title="Not confirmed in over 30 days">unconfirmed</span>{% endif %}
+                        </div>
+                        <form action="{{ url_for('pledge', item_id=n.item_id) }}" method="POST">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                            <button class="btn btn-sm btn-primary-blue rounded-pill px-3">Pledge</button>
+                        </form>
+                    </div>
+                    {% else %}
+                    <p class="text-muted small mb-0">No open needs in this category.</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    {% else %}
+        <div class="col-12">
+            <div class="card shadow-sm border-0 rounded-3"><div class="card-body p-5 text-center text-muted">
+                No orphanages have open needs right now.
+            </div></div>
+        </div>
+    {% endfor %}
+    </div>
+
+    <p class="text-muted small mt-4 mb-0">
+        Ranked by SmartMatch using
+        {% if recommendation.model.type == 'default_weights' %}default weights{% else %}weights learned from past donations{% endif %}.
+    </p>
+{% endif %}
+{% endblock %}
