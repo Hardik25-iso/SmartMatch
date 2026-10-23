@@ -32,6 +32,7 @@
                         <td class="py-3 px-4 align-middle fw-bold text-danger">{{ match.their_needed_quantity }}</td>
                         <td class="py-3 px-4 align-middle">
                             <form action="{{ url_for('execute_reroute') }}" method="POST" onsubmit="return confirm('Are you sure you want to send {{ match.their_needed_quantity }} x {{ match.item_name }} to {{ match.they_need_it_orphanage_name }}?');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                                 <input type="hidden" name="surplus_id" value="{{ match.my_surplus_id }}">
                                 <input type="hidden" name="need_id" value="{{ match.their_need_id }}">
                                 <button type="submit" class="btn btn-secondary-dark btn-sm rounded-pill px-3">

@@ -1,6 +1,6 @@
-# NexaKind — Cloud Deployment Guide (CA1, Task 1)
+# SmartMatch — Cloud Deployment Guide (CA1, Task 1)
 
-Deploy the NexaKind Flask + MySQL app to **AWS EC2** using Docker Compose.
+Deploy the SmartMatch Flask + MySQL app to **AWS EC2** using Docker Compose.
 Everything below has been tested locally with `docker compose` before writing.
 
 ---
@@ -38,7 +38,7 @@ Stop with `Ctrl+C`; wipe the database volume with `docker compose down -v`.
 
 ### 2.1 Launch the instance
 1. AWS Console → **EC2** → **Launch instance**.
-2. Name: `nexakind`. AMI: **Ubuntu Server 22.04 LTS**. Type: **t2.micro** (free tier — or t3.small if you want more RAM).
+2. Name: `smartmatch`. AMI: **Ubuntu Server 22.04 LTS**. Type: **t2.micro** (free tier — or t3.small if you want more RAM).
 3. Create/download a key pair (`.pem`).
 4. **Security group** — allow inbound:
    - SSH (22) from *My IP*
@@ -57,11 +57,11 @@ newgrp docker          # apply group without re-login
 
 ### 2.3 Get the code onto the instance
 ```bash
-git clone <your-repo-url> nexakind    # or scp the folder up (see note below)
-cd nexakind
+git clone <your-repo-url> smartmatch    # or scp the folder up (see note below)
+cd smartmatch
 ```
 > No git remote? From your laptop:
-> `scp -i your-key.pem -r ./dcdsproject-my-new-feature ubuntu@<EC2_PUBLIC_IP>:~/nexakind`
+> `scp -i your-key.pem -r ./dcdsproject-my-new-feature ubuntu@<EC2_PUBLIC_IP>:~/smartmatch`
 > (make sure `venv/` is deleted first — see Cleanup section).
 
 ### 2.4 Configure secrets and run
@@ -86,6 +86,21 @@ docker compose logs -f web     # tail app logs
 docker compose restart web     # restart app (reseeds demo data)
 docker compose down            # stop (keeps data volume)
 docker compose down -v         # stop + wipe database
+```
+
+### 2.7 Matching engine: daily freshness scan and alerts
+On every start the container generates synthetic demo data, trains the ranker and flags stale listings
+(see `docker compose logs web`). To re-flag listings and nudge NGOs daily, add a host cron job
+(`crontab -e` on the EC2 instance):
+```bash
+0 9 * * * cd ~/smartmatch && docker compose exec -T web flask smartmatch-scan --alert >> ~/smartmatch-scan.log 2>&1
+```
+This runs from cron rather than inside the app: gunicorn runs 3 workers, so an in-process scheduler would fire 3 times.
+Alerts are dry-run (logged only) until you set `ALERTS_DRY_RUN=false` plus SMTP and/or Twilio credentials in `.env`.
+
+Log in as `admin@example.com` / `11` and open **Matching** in the nav bar for the dashboard. API check:
+```bash
+curl -H "X-API-Key: $SMARTMATCH_API_KEY" "http://<EC2_PUBLIC_IP>/api/recommend?donor_id=1&item_category=Food"
 ```
 
 ---

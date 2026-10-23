@@ -1,4 +1,4 @@
-# NexaKind — full stack (web + MySQL) for local run and cloud deployment.
+# SmartMatch — full stack (web + MySQL) for local run and cloud deployment.
 # Usage:  docker compose up --build   then open http://localhost
 #
 # The RabbitMQ worker (worker.py) is intentionally NOT deployed here: the app
@@ -30,6 +30,21 @@ services:
       DB_HOST: db          # overrides .env: the DB is the "db" service, not localhost
       DB_NAME: ${DB_NAME}
       SECRET_KEY: ${SECRET_KEY}
+      SMARTMATCH_API_KEY: ${SMARTMATCH_API_KEY:-}
+      APP_BASE_URL: ${APP_BASE_URL:-http://localhost}
+      ALERTS_DRY_RUN: ${ALERTS_DRY_RUN:-true}
+      ALERT_COOLDOWN_DAYS: ${ALERT_COOLDOWN_DAYS:-7}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      SMTP_USE_TLS: ${SMTP_USE_TLS:-true}
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
+      TWILIO_WHATSAPP_FROM: ${TWILIO_WHATSAPP_FROM:-}
+      ALERTS_REDIRECT_EMAIL: ${ALERTS_REDIRECT_EMAIL:-}
+      ALERTS_REDIRECT_WHATSAPP: ${ALERTS_REDIRECT_WHATSAPP:-}
     depends_on:
       db:
         condition: service_healthy

@@ -1,4 +1,4 @@
-# NexaKind web app — Flask + gunicorn
+# SmartMatch web app — Flask + gunicorn
 FROM python:3.11-slim
 
 ENV PYTHONUNBUFFERED=1 \

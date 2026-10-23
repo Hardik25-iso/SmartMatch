@@ -37,6 +37,7 @@
                                     {% if current_user.is_authenticated %}
                                         {% if current_user.role == 'donor' %}
                                             <form action="{{ url_for('pledge', item_id=item.id) }}" method="POST">
+                                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                                                 <button type="submit" class="btn btn-primary-blue rounded-pill px-4">
                                                     Pledge This Item
                                                 </button>

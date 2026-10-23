@@ -11,6 +11,7 @@
             </div>
             <div class="card-body p-4 p-md-5">
                 <form action="{{ url_for('add_update') }}" method="POST" class="needs-validation" novalidate>
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                     <div class="mb-3">
                         <label for="title" class="form-label">Title</label>
                         <input type="text" name="title" id="title" class="form-control" required>

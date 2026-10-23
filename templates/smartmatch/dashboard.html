@@ -1,0 +1,282 @@
+{% extends 'base.html' %}
+{% block title %}SmartMatch Dashboard{% endblock %}
+
+{% block content %}
+{% macro keep_selection() %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% for k, v in selected.items() if v %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}{% endmacro %}
+<style>
+    .sm-kpi .value { font-size: 2.25rem; font-weight: 700; line-height: 1.1; }
+    .sm-kpi .label { color: #6c757d; font-size: .85rem; text-transform: uppercase; letter-spacing: .04em; }
+    .sm-bar { height: 6px; background: #e9ecef; border-radius: 3px; overflow: hidden; min-width: 60px; }
+    .sm-bar > span { display: block; height: 100%; background: var(--primary-blue); }
+    .sm-bar.fresh > span { background: #198754; }
+    .sm-components td { padding: 1px 6px 1px 0; font-size: .75rem; color: #6c757d; white-space: nowrap; }
+    .sm-score { font-size: 1.25rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .table td, .table th { vertical-align: middle; }
+</style>
+
+<div class="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-4">
+    <div>
+        <h1 class="display-5 fw-bold gradient-text-blue mb-1">SmartMatch</h1>
+        <p class="lead text-secondary mb-0">Donor-to-NGO recommendations and need-freshness health.</p>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+        <form method="POST" action="{{ url_for('smartmatch.run_scan') }}">{{ keep_selection() }}
+            <button class="btn btn-outline-dark rounded-pill"><i class="bi bi-arrow-repeat me-1"></i>Run freshness scan</button>
+        </form>
+        <form method="POST" action="{{ url_for('smartmatch.run_alerts') }}">{{ keep_selection() }}
+            <button class="btn btn-secondary-dark rounded-pill"><i class="bi bi-send me-1"></i>Send alerts{% if dry_run %} (dry run){% endif %}</button>
+        </form>
+        <form method="POST" action="{{ url_for('smartmatch.run_training') }}">{{ keep_selection() }}
+            <button class="btn btn-primary-blue rounded-pill"><i class="bi bi-cpu me-1"></i>Retrain model</button>
+        </form>
+    </div>
+</div>
+
+<!-- KPI tiles -->
+<div class="row g-3 mb-5">
+    <div class="col-6 col-lg">
+        <div class="card shadow-sm border-0 rounded-3 h-100 sm-kpi"><div class="card-body p-4">
+            <div class="label">Active listings</div>
+            <div class="value">{{ freshness.active }}</div>
+        </div></div>
+    </div>
+    <div class="col-6 col-lg">
+        <div class="card shadow-sm border-0 rounded-3 h-100 sm-kpi"><div class="card-body p-4">
+            <div class="label">Stale (30+ days)</div>
+            <div class="value {% if freshness.stale %}text-danger{% endif %}">{{ freshness.stale }}</div>
+        </div></div>
+    </div>
+    <div class="col-6 col-lg">
+        <div class="card shadow-sm border-0 rounded-3 h-100 sm-kpi"><div class="card-body p-4">
+            <div class="label">Fresh</div>
+            <div class="value">{{ freshness.pct_fresh }}%</div>
+        </div></div>
+    </div>
+    <div class="col-6 col-lg">
+        <div class="card shadow-sm border-0 rounded-3 h-100 sm-kpi"><div class="card-body p-4">
+            <div class="label">Alerts, last 7 days</div>
+            <div class="value">{{ alerts_last_week }}</div>
+        </div></div>
+    </div>
+    <div class="col-12 col-lg-4">
+        <div class="card shadow-sm border-0 rounded-3 h-100 sm-kpi"><div class="card-body p-4">
+            <div class="label">Ranking model</div>
+            {% if model.type != 'default_weights' %}
+                {% set m = model.metrics %}
+                <div class="fw-bold fs-5">Learned ranker <span class="badge bg-success-subtle text-success-emphasis align-middle">trained</span></div>
+                <div class="small text-muted mb-1">{{ model.trained_at }} UTC · {{ m.holdout_events }} held-out donations, ~{{ m.avg_candidates }} candidates each</div>
+                <table class="small w-100">
+                    <tr class="text-muted"><td></td><td>Hit-rate@5</td><td>MRR</td></tr>
+                    {% for label, key in [('Learned', 'learned'), ('Default weights', 'default_weights'), ('Nearest NGO', 'nearest_ngo')] %}
+                    <tr class="{{ 'fw-bold' if key == 'learned' else '' }}"><td>{{ label }}</td><td>{{ '%.0f' % (m[key]['hit_rate@5'] * 100) }}%</td><td>{{ '%.2f' % m[key]['mrr'] }}</td></tr>
+                    {% endfor %}
+                </table>
+            {% else %}
+                <div class="fw-bold fs-5">Default weights <span class="badge bg-warning-subtle text-warning-emphasis align-middle">untrained</span></div>
+                <div class="small text-muted">Click "Retrain model" or run <code>flask smartmatch-train</code>.</div>
+            {% endif %}
+        </div></div>
+    </div>
+</div>
+
+<!-- Recommendations -->
+<h2 class="h3 fw-bold mb-3">Donation recommendations</h2>
+<div class="card shadow-sm border-0 rounded-3 mb-5">
+    <div class="card-body p-4">
+        <form method="GET" action="{{ url_for('smartmatch.dashboard') }}" class="row g-3 align-items-end">
+            <div class="col-md-4">
+                <label class="form-label small fw-semibold" for="donor_id">Donor</label>
+                <select class="form-select" name="donor_id" id="donor_id">
+                    {% for d in donors %}
+                    <option value="{{ d.id }}" {% if d.id == selected.donor_id %}selected{% endif %}>{{ d.name }} · {{ d.area or 'no area' }} (#{{ d.id }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small fw-semibold" for="item_category">Item category</label>
+                <select class="form-select" name="item_category" id="item_category">
+                    {% for c in categories %}
+                    <option {% if c == selected.item_category %}selected{% endif %}>{{ c }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small fw-semibold" for="donor_area">Donor area</label>
+                <select class="form-select" name="donor_area" id="donor_area">
+                    <option value="">Donor's home area</option>
+                    {% for a in areas %}
+                    <option {% if a == selected.donor_area %}selected{% endif %}>{{ a }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2 d-grid">
+                <button class="btn btn-primary-blue rounded-pill">Recommend</button>
+            </div>
+        </form>
+    </div>
+
+    {% if rec_error %}
+        <div class="alert alert-warning mx-4">{{ rec_error }}</div>
+    {% elif recommendation %}
+    {% set q = recommendation.query %}
+    <div class="row g-0 border-top">
+        <div class="col-lg-9 border-end">
+            <div class="px-4 pt-3 pb-2 small text-muted">
+                Top NGOs for <strong>{{ q.donor_name }}</strong> giving <strong>{{ q.item_category }}</strong>
+                from <strong>{{ q.donor_area or 'an unknown area' }}</strong>.
+                {% if not recommendation.category_has_matches and recommendation.results %}
+                    <span class="text-warning-emphasis">No NGO has an open {{ q.item_category }} need; showing NGOs with other open needs.</span>
+                {% endif %}
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="px-4">#</th>
+                            <th>NGO</th>
+                            <th>Distance</th>
+                            <th>Score</th>
+                            <th>Why</th>
+                            <th class="pe-4">Matching needs</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for r in recommendation.results %}
+                        <tr>
+                            <td class="px-4 text-muted">{{ r.rank }}</td>
+                            <td><span class="fw-bold d-block">{{ r.orphanage_name }}</span><small class="text-muted">{{ r.area }}</small></td>
+                            <td class="text-nowrap">{{ '%.1f km' % r.distance_km if r.distance_km is not none else '—' }}</td>
+                            <td><span class="sm-score">{{ '%.2f' % r.score }}</span></td>
+                            <td>
+                                <table class="sm-components">
+                                    {% for name in feature_names %}
+                                    <tr><td>{{ name.replace('_', ' ') }}</td><td><div class="sm-bar"><span style="width: {{ (r.components[name] * 100)|round(0) }}%"></span></div></td></tr>
+                                    {% endfor %}
+                                    <tr><td>freshness</td><td><div class="sm-bar fresh"><span style="width: {{ (r.freshness * 100)|round(0) }}%"></span></div></td></tr>
+                                </table>
+                            </td>
+                            <td class="pe-4 small">
+                                {% for n in r.matching_needs[:3] %}
+                                    <div>{{ n.item_name }} ×{{ n.quantity_needed }}
+                                        {% if n.is_urgent %}<span class="badge bg-danger-subtle text-danger-emphasis">urgent</span>{% endif %}
+                                        {% if n.is_stale %}<span class="badge bg-secondary-subtle text-secondary-emphasis">stale</span>{% endif %}
+                                    </div>
+                                {% else %}<span class="text-muted">—</span>{% endfor %}
+                                {% if r.matching_needs|length > 3 %}<div class="text-muted">+{{ r.matching_needs|length - 3 }} more</div>{% endif %}
+                            </td>
+                        </tr>
+                    {% else %}
+                        <tr><td colspan="6" class="p-4 text-center text-muted">No NGO has open needs right now.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="col-lg-3">
+            <div class="p-4">
+                <h3 class="h6 fw-bold mb-3">Recent gifts by this donor</h3>
+                {% for h in recommendation.history %}
+                    <div class="small mb-2">
+                        <span class="fw-semibold">{{ h.item_name }}</span><br>
+                        <span class="text-muted">{{ h.category }} · {{ ngo_names.get(h.orphanage_id, '') }} · {{ h.pledge_timestamp[:10] }}</span>
+                    </div>
+                {% else %}
+                    <p class="small text-muted mb-0">No donation history yet, so recommendations use the category and location only.</p>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Freshness health -->
+<h2 class="h3 fw-bold mb-3">Need-freshness health</h2>
+<div class="row g-4 mb-4">
+    <div class="col-lg-4">
+        <div class="card shadow-sm border-0 rounded-3 h-100">
+            <div class="card-header bg-white border-0 p-4 pb-2">
+                <h3 class="h5 fw-bold mb-0">Active listings by days since update</h3>
+            </div>
+            <div class="card-body p-4 pt-2">
+                {% for b in freshness.buckets %}
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between small mb-1">
+                        <span>{{ b.label }}</span><span class="fw-semibold">{{ b.count }} <span class="text-muted fw-normal">({{ b.pct }}%)</span></span>
+                    </div>
+                    <div class="progress" style="height: 10px;" role="progressbar" aria-label="{{ b.label }}" aria-valuenow="{{ b.pct }}" aria-valuemin="0" aria-valuemax="100">
+                        <div class="progress-bar {% if b.stale_zone %}bg-danger{% else %}bg-success{% endif %}" style="width: {{ b.pct }}%"></div>
+                    </div>
+                </div>
+                {% endfor %}
+                <p class="small text-muted mb-0">Listings pass the 30-day line in red. They are flagged stale when a scan runs.</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-8">
+        <div class="card shadow-sm border-0 rounded-3 h-100">
+            <div class="card-header bg-white border-0 p-4 pb-2 d-flex justify-content-between">
+                <h3 class="h5 fw-bold mb-0">Stale listings</h3>
+                <span class="badge bg-dark rounded-pill align-self-center">{{ stale_listings|length }}</span>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive" style="max-height: 420px;">
+                    <table class="table table-hover table-sm mb-0">
+                        <thead class="table-light sticky-top">
+                            <tr><th class="px-4">NGO</th><th>Item</th><th>Category</th><th>Age</th><th class="pe-4">Last alert</th></tr>
+                        </thead>
+                        <tbody>
+                        {% for s in stale_listings %}
+                            <tr>
+                                <td class="px-4"><span class="fw-semibold">{{ s.orphanage_name }}</span> <small class="text-muted">{{ s.area }}</small></td>
+                                <td>{{ s.item_name }} ×{{ s.quantity_needed }}</td>
+                                <td>{{ s.category }}</td>
+                                <td class="text-nowrap {% if s.age_days >= 60 %}text-danger fw-semibold{% endif %}">{{ s.age_days }} days</td>
+                                <td class="pe-4 small text-muted text-nowrap">{{ s.last_alert_at[:10] if s.last_alert_at else 'never' }}</td>
+                            </tr>
+                        {% else %}
+                            <tr><td colspan="5" class="p-4 text-center text-muted">No stale listings. Run a freshness scan to update the flags.</td></tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card shadow-sm border-0 rounded-3">
+    <div class="card-header bg-white border-0 p-4 pb-2">
+        <h3 class="h5 fw-bold mb-0">Recent alerts</h3>
+        {% if dry_run %}<p class="small text-muted mb-0">Dry run is on (<code>ALERTS_DRY_RUN</code>), so alerts are logged but not delivered.</p>{% endif %}
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover table-sm mb-0">
+                <thead class="table-light">
+                    <tr><th class="px-4">When (UTC)</th><th>NGO</th><th>Channel</th><th>Recipient</th><th>Items</th><th class="pe-4">Status</th></tr>
+                </thead>
+                <tbody>
+                {% for a in alerts %}
+                    <tr>
+                        <td class="px-4 text-nowrap">{{ a.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                        <td>{{ a.orphanage.name }}</td>
+                        <td><i class="bi {{ 'bi-envelope' if a.channel == 'email' else 'bi-whatsapp' }} me-1"></i>{{ a.channel }}</td>
+                        <td class="small">{{ a.recipient }}</td>
+                        <td>{{ a.item_count }}</td>
+                        <td class="pe-4">
+                            <span class="badge rounded-pill
+                                {% if a.status == 'sent' %}bg-success-subtle text-success-emphasis
+                                {% elif a.status == 'failed' %}bg-danger-subtle text-danger-emphasis
+                                {% else %}bg-secondary-subtle text-secondary-emphasis{% endif %}"
+                                {% if a.error %}title="{{ a.error }}"{% endif %}>{{ a.status.replace('_', ' ') }}</span>
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr><td colspan="6" class="p-4 text-center text-muted">No alerts yet.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
