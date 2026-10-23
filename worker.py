@@ -36,9 +36,12 @@ class ItemNeeded(db.Model):
     is_urgent = db.Column(db.Boolean, default=False, nullable=False)
     date_posted = db.Column(db.DateTime, server_default=db.func.now())
     status = db.Column(db.String(20), default='Active')
-    orphanage_id = db.Column(db.Integer, db.ForeignKey('orphanage.id'), nullable=False)
-    pledged_by = db.Column(db.String(100), nullable=True)
+    # NOTE: kept in sync with app.py's ItemNeeded (donor_id FK, not a pledged_by
+    # string). FK targets are omitted here because the worker only reads/writes
+    # this one table and does not map the account/orphanage tables.
+    orphanage_id = db.Column(db.Integer, nullable=False)
     pledge_timestamp = db.Column(db.DateTime, nullable=True)
+    donor_id = db.Column(db.Integer, nullable=True)
 
 # --- WORKER CALLBACK ---
 def process_pledge_callback(ch, method, properties, body):
@@ -47,7 +50,7 @@ def process_pledge_callback(ch, method, properties, body):
     try:
         data = json.loads(body)
         item_id = data.get('item_id')
-        donor_name = data.get('donor_name')
+        donor_id = data.get('donor_id')
 
         # Use 'with app.app_context():' to safely interact with the database
         with app.app_context():
@@ -63,10 +66,10 @@ def process_pledge_callback(ch, method, properties, body):
             else:
                 # Success! Update the item.
                 item.status = 'Pledged'
-                item.pledged_by = donor_name
+                item.donor_id = donor_id
                 item.pledge_timestamp = datetime.utcnow()
                 db.session.commit()
-                print(f" [x] Successfully pledged item {item_id} to {donor_name}.")
+                print(f" [x] Successfully pledged item {item_id} to donor {donor_id}.")
 
         # Acknowledge the message (tells RabbitMQ we processed it)
         ch.basic_ack(delivery_tag=method.delivery_tag)

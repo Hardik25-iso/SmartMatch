@@ -1,5 +1,6 @@
 import os
 import random
+from types import SimpleNamespace
 from datetime import datetime, timedelta
 from flask import Flask, render_template, request, redirect, url_for, flash, abort
 from flask_sqlalchemy import SQLAlchemy
@@ -8,6 +9,10 @@ from sqlalchemy import func, case, text
 from flask_bcrypt import Bcrypt
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from dotenv import load_dotenv
+import logging
+from flask_wtf.csrf import CSRFProtect, CSRFError
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 # --- APP INITIALIZATION ---
 load_dotenv()
@@ -19,12 +24,35 @@ DB_PASSWORD = os.environ.get('DB_PASSWORD', 'root')
 DB_HOST = os.environ.get('DB_HOST', 'localhost')
 DB_NAME = os.environ.get('DB_NAME', 'orphanage_db')
 
-app.config['SQLALCHEMY_DATABASE_URI'] = f'mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}/{DB_NAME}'
+# DATABASE_URL (e.g. sqlite:// for tests) overrides the MySQL settings above.
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL') or f'mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}/{DB_NAME}'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'a-secret-key-you-should-change')
+
+# --- SECURITY: require a real secret key (no insecure fallback) ---
+_secret_key = os.environ.get('SECRET_KEY')
+if not _secret_key or _secret_key == 'a-secret-key-you-should-change':
+    raise RuntimeError(
+        "CRITICAL: A secure SECRET_KEY environment variable must be configured."
+    )
+app.config['SECRET_KEY'] = _secret_key
+
+# --- SECURITY: session cookie hardening ---
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE='Lax',
+    # Secure=True requires HTTPS; enable via env in production (would break plain HTTP).
+    SESSION_COOKIE_SECURE=os.environ.get('SESSION_COOKIE_SECURE', 'False').lower() in ('true', '1'),
+    PERMANENT_SESSION_LIFETIME=timedelta(hours=12),
+)
+
+logging.basicConfig(level=logging.INFO)
 
 db = SQLAlchemy(app)
-bcrypt = Bcrypt(app) 
+bcrypt = Bcrypt(app)
+csrf = CSRFProtect(app)
+# Rate limiting: no global default (avoids throttling normal browsing);
+# explicit limits are attached to sensitive routes below.
+limiter = Limiter(get_remote_address, app=app)
 
 # --- LOGIN MANAGER SETUP ---
 login_manager = LoginManager()
@@ -42,7 +70,8 @@ class Account(db.Model, UserMixin):
     email = db.Column(db.String(120), unique=True, nullable=False)
     password = db.Column(db.String(60), nullable=False)
     name = db.Column(db.String(100), nullable=False)
-    role = db.Column(db.String(20), nullable=False) # 'donor' or 'ngo'
+    role = db.Column(db.String(20), nullable=False) # 'donor', 'ngo' or 'admin'
+    area = db.Column(db.String(60), nullable=True) # SmartMatch: donor's home area in Pune
     orphanage = db.relationship('Orphanage', back_populates='account', uselist=False)
     pledges = db.relationship('ItemNeeded', back_populates='donor')
 
@@ -52,6 +81,7 @@ class Orphanage(db.Model):
     city = db.Column(db.String(100), nullable=False)
     address = db.Column(db.Text, nullable=False)
     contact_email = db.Column(db.String(120), unique=True, nullable=False)
+    contact_phone = db.Column(db.String(20), nullable=True) # SmartMatch: WhatsApp alerts
     description = db.Column(db.Text, nullable=True)
     items = db.relationship('ItemNeeded', back_populates='orphanage', cascade="all, delete-orphan")
     updates = db.relationship('Update', back_populates='orphanage', cascade="all, delete-orphan")
@@ -75,6 +105,11 @@ class ItemNeeded(db.Model):
     pledge_timestamp = db.Column(db.DateTime, nullable=True)
     donor_id = db.Column(db.Integer, db.ForeignKey('account.id'), nullable=True)
     donor = db.relationship('Account', back_populates='pledges')
+    # SmartMatch need-freshness tracking. last_updated is set explicitly (no onupdate)
+    # so that the stale scan writing is_stale does not count as the NGO refreshing it.
+    last_updated = db.Column(db.DateTime, server_default=db.func.now())
+    is_stale = db.Column(db.Boolean, default=False, nullable=False, server_default=sqlalchemy.false())
+    stale_since = db.Column(db.DateTime, nullable=True)
 
 class Update(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -92,6 +127,18 @@ class SurplusItem(db.Model):
     status = db.Column(db.String(20), default='Available')
     orphanage_id = db.Column(db.Integer, db.ForeignKey('orphanage.id'), nullable=False)
     orphanage = db.relationship('Orphanage', back_populates='surpluses')
+
+class AlertLog(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    orphanage_id = db.Column(db.Integer, db.ForeignKey('orphanage.id', ondelete='CASCADE'), nullable=False)
+    orphanage = db.relationship('Orphanage')
+    channel = db.Column(db.String(20), nullable=False)   # 'email' or 'whatsapp'
+    recipient = db.Column(db.String(120), nullable=True)
+    status = db.Column(db.String(20), nullable=False)    # 'sent', 'failed' or 'dry_run'
+    item_count = db.Column(db.Integer, default=0)
+    message = db.Column(db.Text, nullable=True)
+    error = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
 
 # --- GLOBAL ADVANCED QUERY FUNCTIONS ---
@@ -131,8 +178,7 @@ def get_top_3_categories():
         ItemNeeded.category,
         func.sum(ItemNeeded.quantity_needed).label('total_quantity_demanded')
     ).filter(
-        ItemNeeded.status == 'Active',
-        ItemNeeded.is_urgent == False
+        ItemNeeded.status == 'Active'
     ).group_by(
         ItemNeeded.category
     ).order_by(
@@ -219,22 +265,31 @@ def needs_list():
 
 @app.route('/pledge/<int:item_id>', methods=['POST'])
 @login_required
+@limiter.limit("20 per minute")
 def pledge(item_id):
     if current_user.role != 'donor':
         flash('Only donor accounts can make pledges.', 'danger')
         return redirect(url_for('needs_list'))
-    item_to_pledge = ItemNeeded.query.get_or_404(item_id)
-    if item_to_pledge.status == 'Active':
-        item_to_pledge.status = 'Pledged'
-        item_to_pledge.donor_id = current_user.id
-        item_to_pledge.pledge_timestamp = datetime.utcnow()
-        db.session.commit()
-        flash('Thank you! Your pledge has been recorded in your dashboard.', 'success')
+    # Atomic conditional update: the WHERE status='Active' and the write happen
+    # in one SQL statement, so two donors pledging the same item concurrently
+    # cannot both succeed and overwrite each other.
+    rows = ItemNeeded.query.filter_by(id=item_id, status='Active').update(
+        {
+            'status': 'Pledged',
+            'donor_id': current_user.id,
+            'pledge_timestamp': datetime.utcnow(),
+        },
+        synchronize_session=False,
+    )
+    db.session.commit()
+    if rows == 0:
+        flash('This item is no longer active — it may have just been pledged by another donor.', 'warning')
     else:
-        flash('This item is no longer active for pledges.', 'warning')
+        flash('Thank you! Your pledge has been recorded in your dashboard.', 'success')
     return redirect(url_for('needs_list'))
 
 @app.route('/register_donor', methods=['GET', 'POST'])
+@limiter.limit("5 per minute", methods=['POST'])
 def register_donor():
     if current_user.is_authenticated:
         flash(f"You are already logged in as {current_user.name}.", 'info')
@@ -258,11 +313,13 @@ def register_donor():
             return redirect(url_for('register_donor'))
         except Exception as e:
             db.session.rollback()
-            flash(f'An error occurred: {e}', 'danger')
+            logging.error(f"Error in {request.endpoint}: {e}", exc_info=True)
+            flash('An unexpected error occurred. Please try again.', 'danger')
             return redirect(url_for('register_donor'))
     return render_template('register_donor.html')
 
 @app.route('/register_ngo', methods=['GET', 'POST'])
+@limiter.limit("5 per minute", methods=['POST'])
 def register_ngo():
     if current_user.is_authenticated:
         flash(f"You are already logged in as {current_user.name}.", 'info')
@@ -295,11 +352,13 @@ def register_ngo():
             return redirect(url_for('register_ngo'))
         except Exception as e:
             db.session.rollback()
-            flash(f'An error occurred: {e}', 'danger')
+            logging.error(f"Error in {request.endpoint}: {e}", exc_info=True)
+            flash('An unexpected error occurred. Please try again.', 'danger')
             return redirect(url_for('register_ngo'))
     return render_template('register_ngo.html')
 
 @app.route('/login', methods=['GET', 'POST'])
+@limiter.limit("5 per minute", methods=['POST'])
 def login():
     if current_user.is_authenticated:
         flash(f"You are already logged in as {current_user.name}.", 'info')
@@ -323,14 +382,19 @@ def logout():
 @login_required
 def dashboard():
     if current_user.role == 'ngo':
+        if not current_user.orphanage:
+            flash('Your orphanage profile was not found. Please contact support.', 'danger')
+            return redirect(url_for('logout'))
         my_items = ItemNeeded.query.filter(
             ItemNeeded.orphanage_id == current_user.orphanage.id,
-            ItemNeeded.status.in_(['Active', 'Pledged'])
+            ItemNeeded.status.in_(['Active', 'Pledged', 'Fulfilled'])
         ).order_by(ItemNeeded.date_posted.desc()).all()
         my_surplus = SurplusItem.query.filter(
             SurplusItem.orphanage_id == current_user.orphanage.id
         ).order_by(SurplusItem.id.desc()).all()
-        return render_template('dashboard.html', items=my_items, surpluses=my_surplus)
+        return render_template('dashboard.html', items=my_items, surpluses=my_surplus, now=datetime.utcnow())
+    elif current_user.role == 'admin':
+        return redirect(url_for('smartmatch.dashboard'))
     elif current_user.role == 'donor':
         my_pledges = ItemNeeded.query.filter_by(donor_id=current_user.id).order_by(ItemNeeded.pledge_timestamp.desc()).all()
         return render_template('donor_dashboard.html', pledges=my_pledges)
@@ -353,9 +417,13 @@ def manage_stats():
             db.session.commit()
             flash('Your statistics have been updated!', 'success')
             return redirect(url_for('dashboard'))
+        except (ValueError, TypeError):
+            db.session.rollback()
+            flash('Please enter valid whole numbers for the statistics.', 'danger')
         except Exception as e:
             db.session.rollback()
-            flash(f'Error updating stats: {e}', 'danger')
+            logging.error(f"Error in {request.endpoint}: {e}", exc_info=True)
+            flash('An unexpected error occurred while updating stats. Please try again.', 'danger')
     
     return render_template('admin/manage_stats.html', orphanage=orphanage)
 
@@ -372,7 +440,8 @@ def insights():
         global_report_3 = get_top_3_categories()
         global_report_4 = get_orphanage_category_ranking()
     except Exception as e:
-        flash(f"Error generating reports: {e}.", 'danger')
+        logging.error(f"Error in {request.endpoint}: {e}", exc_info=True)
+        flash("An unexpected error occurred while generating reports. Please try again.", 'danger')
         personal_report_data, personal_pledge_data = None, []
         global_report_1, global_report_2, global_report_3, global_report_4 = [], [], [], []
     
@@ -391,13 +460,21 @@ def insights():
 def add_item():
     if current_user.role != 'ngo': abort(403)
     if request.method == 'POST':
+        try:
+            qty = int(request.form.get('quantity_needed', 0))
+            if qty <= 0:
+                raise ValueError()
+        except (ValueError, TypeError):
+            flash('Quantity must be a positive integer greater than zero.', 'danger')
+            return redirect(url_for('add_item'))
         is_urgent = 'is_urgent' in request.form
         new_item = ItemNeeded(
             item_name=request.form['item_name'],
             category=request.form['category'],
-            quantity_needed=request.form['quantity_needed'],
+            quantity_needed=qty,
             is_urgent=is_urgent,
-            orphanage_id=current_user.orphanage.id
+            orphanage_id=current_user.orphanage.id,
+            last_updated=datetime.utcnow()
         )
         db.session.add(new_item)
         db.session.commit()
@@ -413,11 +490,27 @@ def edit_item(item_id):
     if item_to_edit.orphanage.account != current_user:
         abort(403)
     if request.method == 'POST':
+        try:
+            qty = int(request.form.get('quantity_needed', 0))
+            if qty <= 0:
+                raise ValueError()
+        except (ValueError, TypeError):
+            flash('Quantity must be a positive integer greater than zero.', 'danger')
+            return redirect(url_for('edit_item', item_id=item_id))
         item_to_edit.item_name = request.form['item_name']
         item_to_edit.category = request.form['category']
-        item_to_edit.quantity_needed = request.form['quantity_needed']
-        item_to_edit.status = request.form['status']
+        item_to_edit.quantity_needed = qty
+        new_status = request.form['status']
+        # Moving a pledged item back to Active must clear the stale donor link,
+        # otherwise the old donor stays attached to an item they no longer hold.
+        if new_status == 'Active' and item_to_edit.status == 'Pledged':
+            item_to_edit.donor_id = None
+            item_to_edit.pledge_timestamp = None
+        item_to_edit.status = new_status
         item_to_edit.is_urgent = 'is_urgent' in request.form
+        item_to_edit.last_updated = datetime.utcnow()
+        item_to_edit.is_stale = False
+        item_to_edit.stale_since = None
         db.session.commit()
         flash('Item updated successfully.', 'success')
         return redirect(url_for('dashboard'))
@@ -430,6 +523,9 @@ def delete_item(item_id):
     item_to_delete = ItemNeeded.query.get_or_404(item_id)
     if item_to_delete.orphanage.account != current_user:
         abort(403)
+    if item_to_delete.status == 'Pledged':
+        flash('Cannot delete an item with an active pledge. Fulfil or cancel the pledge first.', 'warning')
+        return redirect(url_for('dashboard'))
     db.session.delete(item_to_delete)
     db.session.commit()
     flash('Item deleted.', 'success')
@@ -460,19 +556,26 @@ def add_surplus():
     if current_user.role != 'ngo': abort(403)
     if request.method == 'POST':
         try:
+            qty = int(request.form.get('quantity', 0))
+            if qty <= 0:
+                raise ValueError('non-positive quantity')
             new_surplus = SurplusItem(
                 item_name=request.form['item_name'],
                 category=request.form['category'],
-                quantity=int(request.form['quantity']),
+                quantity=qty,
                 orphanage_id=current_user.orphanage.id,
                 status='Available'
             )
             db.session.add(new_surplus)
             db.session.commit()
             flash('Surplus item added successfully.', 'success')
+        except ValueError:
+            db.session.rollback()
+            flash('Quantity must be a positive integer greater than zero.', 'danger')
         except Exception as e:
             db.session.rollback()
-            flash(f'Error adding surplus: {e}', 'danger')
+            logging.error(f"Error in {request.endpoint}: {e}", exc_info=True)
+            flash('An unexpected error occurred while adding surplus. Please try again.', 'danger')
         return redirect(url_for('dashboard'))
     return render_template('admin/add_surplus.html')
 
@@ -491,8 +594,8 @@ def reroute():
         Orphanage.name.label('they_need_it_orphanage_name')
     ).join(
         ItemNeeded, 
-        (func.lower(SurplusItem.item_name) == func.lower(ItemNeeded.item_name)) & 
-        (SurplusItem.category == ItemNeeded.category)
+        (func.lower(SurplusItem.item_name) == func.lower(ItemNeeded.item_name)) &
+        (func.lower(SurplusItem.category) == func.lower(ItemNeeded.category))
     ).join(
         Orphanage, 
         ItemNeeded.orphanage_id == Orphanage.id
@@ -517,6 +620,9 @@ def execute_reroute():
         if surplus_item.orphanage.account != current_user:
             flash('Authorization error: This is not your surplus item.', 'danger')
             return redirect(url_for('reroute'))
+        if need_item.orphanage_id == current_user.orphanage.id:
+            flash("You cannot reroute a surplus into your own orphanage's need.", 'danger')
+            return redirect(url_for('reroute'))
         if surplus_item.quantity < need_item.quantity_needed:
             flash('Reroute failed: You no longer have enough quantity.', 'danger')
             return redirect(url_for('reroute'))
@@ -526,15 +632,40 @@ def execute_reroute():
         surplus_item.quantity -= need_item.quantity_needed
         if surplus_item.quantity == 0:
             surplus_item.status = 'Rerouted'
+        # A reroute fulfils a need from another orphanage's surplus, not a donor
+        # pledge. Do NOT set donor_id (that would mislabel this NGO as the donor).
         need_item.status = 'Fulfilled'
-        need_item.donor_id = current_user.id
         need_item.pledge_timestamp = datetime.utcnow()
         db.session.commit()
         flash(f"Success! {need_item.quantity_needed} x {need_item.item_name} rerouted to {need_item.orphanage.name}.", 'success')
     except Exception as e:
         db.session.rollback()
-        flash(f'An error occurred: {e}', 'danger')
+        logging.error(f"Error in {request.endpoint}: {e}", exc_info=True)
+        flash('An unexpected error occurred during rerouting. Please try again.', 'danger')
     return redirect(url_for('reroute'))
+
+
+# --- ERROR HANDLERS ---
+@app.errorhandler(403)
+def forbidden_error(error):
+    return render_template('errors/403.html'), 403
+
+@app.errorhandler(404)
+def not_found_error(error):
+    return render_template('errors/404.html'), 404
+
+@app.errorhandler(429)
+def ratelimit_error(error):
+    return render_template('errors/429.html'), 429
+
+@app.errorhandler(500)
+def internal_error(error):
+    db.session.rollback()
+    return render_template('errors/500.html'), 500
+
+@app.errorhandler(CSRFError)
+def csrf_error(error):
+    return render_template('errors/csrf.html', reason=error.description), 400
 
 
 # --- DB Setup Command ---
@@ -553,6 +684,7 @@ def seed_db():
     
     # 0. Clear all existing data
     print("Clearing old data...")
+    db.session.query(AlertLog).delete()
     db.session.query(ItemNeeded).delete()
     db.session.query(SurplusItem).delete()
     db.session.query(Update).delete()
@@ -567,7 +699,8 @@ def seed_db():
             email='donor@example.com',
             name='Test Donor',
             password=donor_hash,
-            role='donor'
+            role='donor',
+            area='Kothrud'
         )
         db.session.add(donor_account)
         db.session.commit()
@@ -575,6 +708,21 @@ def seed_db():
     except Exception as e:
         db.session.rollback()
         print(f"Error creating donor: {e}")
+
+    # 1b. SmartMatch admin account (Password: 11)
+    try:
+        admin_account = Account(
+            email='admin@example.com',
+            name='SmartMatch Admin',
+            password=bcrypt.generate_password_hash('11').decode('utf-8'),
+            role='admin'
+        )
+        db.session.add(admin_account)
+        db.session.commit()
+        print("Created admin account (admin@example.com / 11)")
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error creating admin: {e}")
 
     # 2. Dummy NGO Data (10 Orphanages in Pune)
     ngo_data = [
@@ -697,7 +845,16 @@ def seed_db():
     print("  - test2@example.com (SOFOSH)")
     print("  - ...and so on up to test10@example.com")
 
-# ... (keep your if __name__ == '__main__' block after this) ...
+# --- SMARTMATCH (recommendations, need freshness, alerts) ---
+from smartmatch import init_smartmatch
+init_smartmatch(app, db, SimpleNamespace(
+    Account=Account, Orphanage=Orphanage, ItemNeeded=ItemNeeded,
+    Update=Update, SurplusItem=SurplusItem, AlertLog=AlertLog,
+))
+# The JSON API authenticates with X-API-Key, so its clients cannot carry a CSRF
+# token; exempt it (the browser dashboard forms keep CSRF protection).
+csrf.exempt(app.blueprints['smartmatch_api'])
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    is_debug = os.environ.get('FLASK_DEBUG', 'False').lower() in ('true', '1')
+    app.run(debug=is_debug)

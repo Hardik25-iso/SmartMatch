@@ -8,6 +8,13 @@ __pycache__/
 # VS Code temp file
 tempCodeRunnerFile.py
 
+# Flask instance folder (trained SmartMatch model)
+instance/
+.pytest_cache/
+
 # Secrets file
 .env
 dcdsproject-my-new-feature.zip
+
+# AWS deployment secrets (never commit)
+.env.aws

@@ -10,6 +10,7 @@
             </div>
             <div class="card-body p-4 p-md-5">
                 <form action="{{ url_for('edit_item', item_id=item.id) }}" method="POST" class="needs-validation" novalidate>
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                     <div class="mb-3">
                         <label for="item_name" class="form-label">Item Name</label>
                         <input type="text" name="item_name" id="item_name" class="form-control" required value="{{ item.item_name }}">

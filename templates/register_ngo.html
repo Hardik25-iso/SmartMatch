@@ -12,6 +12,7 @@
             </div>
             <div class="card-body p-4 p-md-5">
                 <form method="POST" action="{{ url_for('register_ngo') }}" class="needs-validation" novalidate>
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                     <h5 class="fw-bold text-secondary mb-3">Step 1: Your Account Details</h5>
                     <div class="row g-3">
                         <div class="col-md-6 mb-3">
